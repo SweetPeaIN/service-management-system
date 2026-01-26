@@ -1,0 +1,12 @@
+# 1. Ignore Database (CRITICAL security rule)
+*.db
+*.sqlite3
+data/
+
+# 2. Ignore Python Cache (System junk)
+__pycache__/
+*.py[cod]
+
+# 3. Ignore Virtual Environment
+.venv/
+uv.lock

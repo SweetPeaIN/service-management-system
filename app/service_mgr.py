@@ -1,0 +1,97 @@
+import questionary
+from sqlmodel import Session
+from rich.console import Console
+from rich.panel import Panel
+from app.database import engine
+from app.models import ServiceRequest, User
+
+console = Console()
+
+# Pricing Configuration (Fixed per Vendor as requested)
+VENDOR_PRICING = {
+    "Vendor A": 100,
+    "Vendor B": 150,
+    "Vendor C": 200
+}
+
+def save_request_to_db(request_data: ServiceRequest):
+    """
+    Independent function to handle the Database Transaction.
+    This separates the 'saving' logic from the 'ui' logic.
+    """
+    with Session(engine) as session:
+        session.add(request_data)
+        session.commit()
+        session.refresh(request_data) # Refresh to get the generated ID
+        return request_data
+
+def create_service_request_ui(current_user: User):
+    """
+    Handles the Interactive Menu for creating a request.
+    Receives the 'current_user' object from main.py.
+    """
+    console.clear()
+    console.print(Panel("Create New Service Request", style="bold cyan"))
+
+    # 1. Select Service
+    service_type = questionary.select(
+        "Select Service Type:",
+        choices=["AC Repair", "TV Repair", "Fridge Repair", "Washing Machine Repair"]
+    ).ask()
+    if not service_type: return # Handle cancel
+
+    # 2. Select Date/Slot
+    date_slot = questionary.text("Enter Preferred Date/Time (e.g., 2023-10-25 10AM):").ask()
+
+    # 3. Address (Pre-fill with user's registered address for better UX)
+    address = questionary.text(
+        "Confirm Service Address:",
+        default=current_user.address,
+        validate=lambda text: True if len(text) <= 100 else "Address too long (max 100 chars)."
+    ).ask()
+
+    # 4. Vendor Selection
+    vendor_choice = questionary.select(
+        "Select a Vendor:",
+        choices=[
+            f"Vendor A (${VENDOR_PRICING['Vendor A']})",
+            f"Vendor B (${VENDOR_PRICING['Vendor B']})",
+            f"Vendor C (${VENDOR_PRICING['Vendor C']})"
+        ]
+    ).ask()
+
+    # Parse the vendor name from the string (e.g., "Vendor A ($100)" -> "Vendor A")
+    vendor_name = vendor_choice.split(" ($")[0]
+    amount = VENDOR_PRICING[vendor_name]
+
+    # 5. Confirmation
+    confirm = questionary.confirm(f"Confirm booking for {service_type} with {vendor_name} for ${amount}?").ask()
+
+    if confirm:
+        # Construct the Model Object
+        new_request = ServiceRequest(
+            customer_id=current_user.id,
+            service_name=service_type,
+            date_slot=date_slot,
+            address=address,
+            vendor_name=vendor_name,
+            amount=amount
+        )
+
+        try:
+            # Call our separate DB function
+            saved_request = save_request_to_db(new_request)
+            
+            console.print(Panel(
+                f"[bold green]Booking is successful![/bold green]\n"
+                f"Order ID: {saved_request.id}\n"
+                f"Service: {saved_request.service_name}\n"
+                f"Vendor: {saved_request.vendor_name}",
+                style="green"
+            ))
+        except Exception as e:
+            console.print(f"[bold red]Error saving request:[/bold red] {e}")
+    else:
+        console.print("[yellow]Booking cancelled.[/yellow]")
+
+    questionary.press_any_key_to_continue().ask()
