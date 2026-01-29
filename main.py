@@ -2,11 +2,12 @@ import sys
 import questionary
 from rich.console import Console
 from rich.panel import Panel
+from rich.align import Align
 
 # Import our custom modules from the app package
 from app.database import create_db_and_tables
 from app.auth import login_user, register_user
-from app.service_mgr import create_service_request_ui
+from app.service_mgr import create_service_request_ui, view_order_history_ui
 
 console = Console()
 
@@ -22,8 +23,27 @@ def main():
         # --- STATE A: User is NOT Logged In ---
         if current_user is None:
             console.clear()
-            console.print(Panel("Service Management System", style="bold magenta"))
+            # Define the ASCII Art
+            # You can customize this art at: https://patorjk.com/software/taag/
+            banner_art = r"""
+                                                                                                                                                               
+ ▄▄▄▄▄▄▄                                     ▄▄▄      ▄▄▄                                                             ▄▄▄▄▄▄▄                                  
+█████▀▀▀                   ▀▀                ████▄  ▄████                                                     ██     █████▀▀▀              ██                  
+ ▀████▄  ▄█▀█▄ ████▄ ██ ██ ██  ▄████ ▄█▀█▄   ███▀████▀███  ▀▀█▄ ████▄  ▀▀█▄ ▄████ ▄█▀█▄ ███▄███▄ ▄█▀█▄ ████▄ ▀██▀▀    ▀████▄  ██ ██ ▄█▀▀▀ ▀██▀▀ ▄█▀█▄ ███▄███▄ 
+   ▀████ ██▄█▀ ██ ▀▀ ██▄██ ██  ██    ██▄█▀   ███  ▀▀  ███ ▄█▀██ ██ ██ ▄█▀██ ██ ██ ██▄█▀ ██ ██ ██ ██▄█▀ ██ ██  ██        ▀████ ██▄██ ▀███▄  ██   ██▄█▀ ██ ██ ██ 
+███████▀ ▀█▄▄▄ ██     ▀█▀  ██▄ ▀████ ▀█▄▄▄   ███      ███ ▀█▄██ ██ ██ ▀█▄██ ▀████ ▀█▄▄▄ ██ ██ ██ ▀█▄▄▄ ██ ██  ██     ███████▀  ▀██▀ ▄▄▄█▀  ██   ▀█▄▄▄ ██ ██ ██ 
+                                                                               ██                                               ██                             
+                                                                             ▀▀▀                                              ▀▀▀                                               
 
+            """
+
+            # We use Align.center to make it look professional on any terminal width
+            styled_banner = Align.center(
+            Panel(banner_art, style="bold cyan", border_style="blue", padding=(1, 2))
+            )
+    
+            console.print(styled_banner)
+            console.print("\n") # Add some breathing room
             choice = questionary.select(
                 "Welcome! Please select an option:",
                 choices=["Login", "Register New Customer", "Exit"]
@@ -63,8 +83,10 @@ def main():
             ).ask()
 
             if choice == "Create Service Request":
-                # ✅ PASS THE LOGGED-IN USER OBJECT HERE
                 create_service_request_ui(current_user)
+
+            elif choice == "View Order History":
+                view_order_history_ui(current_user)
 
             elif choice == "Logout":
                 current_user = None

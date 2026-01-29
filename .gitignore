@@ -1,7 +1,7 @@
-# 1. Ignore Database (CRITICAL security rule)
-*.db
-*.sqlite3
-data/
+# # 1. Ignore Database 
+# *.db
+# *.sqlite3
+# data/
 
 # 2. Ignore Python Cache (System junk)
 __pycache__/

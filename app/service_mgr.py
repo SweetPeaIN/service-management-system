@@ -4,6 +4,8 @@ from rich.console import Console
 from rich.panel import Panel
 from app.database import engine
 from app.models import ServiceRequest, User
+from rich.table import Table
+from sqlmodel import select
 
 console = Console()
 
@@ -94,4 +96,54 @@ def create_service_request_ui(current_user: User):
     else:
         console.print("[yellow]Booking cancelled.[/yellow]")
 
+    questionary.press_any_key_to_continue().ask()
+
+
+def view_order_history_ui(current_user: User):
+    """
+    Fetches and displays the service history for the logged-in user.
+    """
+    console.clear()
+    
+    # 1. Fetch Data
+    with Session(engine) as session:
+        statement = select(ServiceRequest).where(ServiceRequest.customer_id == current_user.id)
+        results = session.exec(statement).all()
+
+    # 2. Handle Empty State
+    if not results:
+        console.print(Panel("No service history found.", style="bold yellow"))
+        questionary.press_any_key_to_continue().ask()
+        return
+
+    # 3. Create Rich Table
+    table = Table(title=f"Order History for {current_user.user_name}", show_lines=True)
+
+    # Define Columns (Symmetric and organized)
+    table.add_column("Service ID", justify="center", style="cyan", no_wrap=True)
+    table.add_column("Customer ID", justify="center", style="magenta")
+    table.add_column("User Name", justify="left", style="green")
+    table.add_column("Service Type", justify="left", style="bold white")
+    table.add_column("Booking Date", justify="center") # From created_at
+    table.add_column("Scheduled Slot", justify="left") # From date_slot
+    table.add_column("Status", justify="center", style="bold yellow")
+
+    # 4. Populate Rows
+    for req in results:
+        # Format the date nicely (YYYY-MM-DD)
+        booking_date = req.created_at.strftime("%Y-%m-%d") if req.created_at else "N/A"
+        
+        table.add_row(
+            str(req.id),
+            str(current_user.id),
+            current_user.user_name,
+            req.service_name,
+            booking_date,
+            req.date_slot,
+            req.status
+        )
+
+    # 5. Display
+    console.print(table)
+    print("\n") # Add a little breathing room
     questionary.press_any_key_to_continue().ask()

@@ -51,6 +51,14 @@ def register_user():
             "Enter Password:",
             validate=lambda text: True if len(text) > 0 and len(text) <= 30 else "Password must be 1-30 characters."
         ).ask()
+
+        confirm_password = questionary.password(
+            "Confirm Password:",
+            validate=lambda text: True if text == password else "Passwords do not match!"
+        ).ask()
+        
+        # Handle case where user might cancel (Ctrl+C)
+        if confirm_password is None: return
         
         # 4. Address (Max 100 chars)
         address = questionary.text(
@@ -78,7 +86,7 @@ def register_user():
             session.commit()
             session.refresh(new_user)
             
-            # Success Message per backlog
+            # Success Message
             console.print(Panel(
                 f"[bold green]Customer Registration is successful[/bold green]\n"
                 f"User ID: {new_user.id}\n"
