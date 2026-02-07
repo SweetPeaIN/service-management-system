@@ -147,3 +147,51 @@ def view_order_history_ui(current_user: User):
     console.print(table)
     print("\n") # Add a little breathing room
     questionary.press_any_key_to_continue().ask()
+
+    # Admin Functionality
+
+def view_all_orders_ui():
+    """
+    Admin feature: View service history of ALL users
+    """
+    console.clear()
+
+    with Session(engine) as session:
+        statement = (
+            select(ServiceRequest, User)
+            .where(ServiceRequest.customer_id == User.id)
+        )
+        results = session.exec(statement).all()
+
+    if not results:
+        console.print(Panel("No service requests found.", style="bold yellow"))
+        questionary.press_any_key_to_continue().ask()
+        return
+
+    table = Table(title="All Service Requests (Admin View)", show_lines=True)
+
+    table.add_column("Order ID", justify="center", style="cyan")
+    table.add_column("User ID", justify="center")
+    table.add_column("Username", style="green")
+    table.add_column("Service", style="white")
+    table.add_column("Vendor")
+    table.add_column("Amount", justify="right")
+    table.add_column("Status", style="yellow")
+    table.add_column("Booking Date")
+
+    for service, user in results:
+        booking_date = service.created_at.strftime("%Y-%m-%d")
+
+        table.add_row(
+            str(service.id),
+            str(user.id),
+            user.user_name,
+            service.service_name,
+            service.vendor_name,
+            str(service.amount),
+            service.status,
+            service.date_slot
+        )
+
+    console.print(table)
+    questionary.press_any_key_to_continue().ask()
