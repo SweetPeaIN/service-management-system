@@ -7,7 +7,8 @@ from app.database import engine
 from app.models import User
 
 console = Console()
-
+ADMIN_USERNAME = "Admin"
+ADMIN_PASSWORD = "admin123"
 def validate_email(text):
     # Simple regex for basic email format (user@domain.com)
     pattern = r"^[\w\.-]+@[\w\.-]+\.\w+$"
@@ -106,7 +107,10 @@ def login_user() -> User | None:
 
     username = questionary.text("Username:").ask()
     password = questionary.password("Password:").ask()
-
+    if username == ADMIN_USERNAME and password == ADMIN_PASSWORD:
+        console.print("[bold green]Welcome Admin! Redirecting to dashboard...[/bold green]")
+        go_to_admin_dashboard()
+        return None
     with Session(engine) as session:
         statement = select(User).where(User.user_name == username)
         user = session.exec(statement).first()
