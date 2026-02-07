@@ -7,7 +7,7 @@ from rich.align import Align
 # Import our custom modules from the app package
 from app.database import create_db_and_tables
 from app.auth import login_user, register_user
-from app.service_mgr import create_service_request_ui, view_order_history_ui
+from app.service_mgr import create_service_request_ui, view_order_history_ui, view_all_orders_ui
 
 console = Console()
 
@@ -63,6 +63,7 @@ def main():
         # --- STATE B: User IS Logged In (Dashboard) ---
         else:
             console.clear()
+            is_admin = current_user.user_name == "Aman Solanki"
             # Show who is logged in
             console.print(
                 Panel(
@@ -72,31 +73,52 @@ def main():
             )
 
             # Dashboard Menu
-            choice = questionary.select(
-                "Main Menu:",
-                choices=[
-                    "Create Service Request",
-                    "View Order History",
-                    "Update Profile",
-                    "Logout",
-                ],
-            ).ask()
 
-            if choice == "Create Service Request":
-                create_service_request_ui(current_user)
+            # Admin
+            if is_admin:
+                choice = questionary.select(
+                    "Admin Menu:",
+                    choices=[
+                        "View All Order History",
+                        "Logout",
+                    ],
+                ).ask()
 
-            elif choice == "View Order History":
-                view_order_history_ui(current_user)
+                if choice == "View All Order History":
+                    view_all_orders_ui()
 
-            elif choice == "Logout":
-                current_user = None
-                console.print("[yellow]Logged out successfully.[/yellow]")
-                questionary.press_any_key_to_continue().ask()
+                elif choice == "Logout":
+                    current_user = None
+                    questionary.press_any_key_to_continue().ask()
+            
+            # User
 
-            else:
-                # Placeholder for features we haven't built yet
-                console.print("[dim]This feature is coming in the next module...[/dim]")
-                questionary.press_any_key_to_continue().ask()
+            else :
+                choice = questionary.select(
+                    "Main Menu:",
+                    choices=[
+                        "Create Service Request",
+                        "View Order History",
+                        "Update Profile",
+                        "Logout",
+                    ],
+                ).ask()
+
+                if choice == "Create Service Request":
+                    create_service_request_ui(current_user)
+
+                elif choice == "View Order History":
+                    view_order_history_ui(current_user)
+
+                elif choice == "Logout":
+                    current_user = None
+                    console.print("[yellow]Logged out successfully.[/yellow]")
+                    questionary.press_any_key_to_continue().ask()
+
+                else:
+                    # Placeholder for features we haven't built yet
+                    console.print("[dim]This feature is coming in the next module...[/dim]")
+                    questionary.press_any_key_to_continue().ask()
 
 
 if __name__ == "__main__":
