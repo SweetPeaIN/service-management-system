@@ -1,37 +1,60 @@
 import questionary
-from sqlmodel import Session
+import re
 from rich.console import Console
 from rich.panel import Panel
+from rich.table import Table
+from datetime import datetime, timedelta
+
+from sqlmodel import select, Session
+
 from app.database import engine
 from app.models import ServiceRequest, User
-from rich.table import Table
-from sqlmodel import select
+from app.utils import paginate_results
 
 console = Console()
 
-# Pricing Configuration (Fixed per Vendor as requested)
+# Pricing Configuration
 VENDOR_PRICING = {
     "Vendor A": 100,
     "Vendor B": 150,
     "Vendor C": 200
 }
 
+# --- VALIDATION FUNCTIONS ---
+def validate_date_input(date_text: str):
+    pattern = r"^\d{4}-\d{2}-\d{2}$"
+    if not re.match(pattern, date_text):
+        return "Use format YYYY-MM-DD (Example: 2026-02-07)"
+
+    try:
+        entered_date = datetime.strptime(date_text, "%Y-%m-%d").date()
+    except ValueError:
+        return "Invalid date"
+
+    today = datetime.today().date()
+    max_date = today + timedelta(days=30)
+
+    if entered_date < today:
+        return "Cannot book for past dates"
+    if entered_date > max_date:
+        return "Bookings allowed only up to 1 month in advance"
+
+    return True
+
+# --- DATABASE FUNCTIONS ---
 def save_request_to_db(request_data: ServiceRequest):
     """
-    Independent function to handle the Database Transaction.
-    This separates the 'saving' logic from the 'ui' logic.
+    Saves the request to the database.
+    Relies on SQLModel/Database to throw an error if ID exists.
     """
     with Session(engine) as session:
         session.add(request_data)
         session.commit()
-        session.refresh(request_data) # Refresh to get the generated ID
+        session.refresh(request_data) 
         return request_data
 
+# --- UI FUNCTIONS ---
 def create_service_request_ui(current_user: User):
-    """
-    Handles the Interactive Menu for creating a request.
-    Receives the 'current_user' object from main.py.
-    """
     console.clear()
     console.print(Panel("Create New Service Request", style="bold cyan"))
 
@@ -40,19 +63,37 @@ def create_service_request_ui(current_user: User):
         "Select Service Type:",
         choices=["AC Repair", "TV Repair", "Fridge Repair", "Washing Machine Repair"]
     ).ask()
-    if not service_type: return # Handle cancel
+    if not service_type: return
 
-    # 2. Select Date/Slot
-    date_slot = questionary.text("Enter Preferred Date/Time (e.g., 2023-10-25 10AM):").ask()
+    # 2. Enter Date
+    date_input = questionary.text(
+        "Enter Preferred Date (YYYY-MM-DD):",
+        validate=validate_date_input
+    ).ask()
+    if not date_input: return
 
-    # 3. Address (Pre-fill with user's registered address for better UX)
+    # 3. Select Time
+    time_slot = questionary.select(
+        "Select Time Slot:",
+        choices=[
+            "09:00 AM - 10:00 AM", "10:00 AM - 11:00 AM", "11:00 AM - 12:00 PM",
+            "12:00 PM - 01:00 PM", "01:00 PM - 02:00 PM", "02:00 PM - 03:00 PM",
+            "03:00 PM - 04:00 PM", "04:00 PM - 05:00 PM", "05:00 PM - 06:00 PM"
+        ]
+    ).ask()
+    if not time_slot: return
+
+    date_slot_combined = f"{date_input} | {time_slot}"
+
+    # 4. Address
     address = questionary.text(
         "Confirm Service Address:",
         default=current_user.address,
         validate=lambda text: True if len(text) <= 100 else "Address too long (max 100 chars)."
     ).ask()
+    if not address: return
 
-    # 4. Vendor Selection
+    # 5. Vendor
     vendor_choice = questionary.select(
         "Select a Vendor:",
         choices=[
@@ -61,89 +102,77 @@ def create_service_request_ui(current_user: User):
             f"Vendor C (${VENDOR_PRICING['Vendor C']})"
         ]
     ).ask()
+    if not vendor_choice: return
 
-    # Parse the vendor name from the string (e.g., "Vendor A ($100)" -> "Vendor A")
     vendor_name = vendor_choice.split(" ($")[0]
     amount = VENDOR_PRICING[vendor_name]
 
-    # 5. Confirmation
-    confirm = questionary.confirm(f"Confirm booking for {service_type} with {vendor_name} for ${amount}?").ask()
+    # 6. Save Logic (The Fix)
+    new_request = ServiceRequest(
+        customer_id=current_user.id,
+        service_name=service_type,
+        date_slot=date_slot_combined,
+        address=address,
+        vendor_name=vendor_name,
+        amount=amount,
+        status="Pending"
+    )
 
-    if confirm:
-        # Construct the Model Object
-        new_request = ServiceRequest(
-            customer_id=current_user.id,
-            service_name=service_type,
-            date_slot=date_slot,
-            address=address,
-            vendor_name=vendor_name,
-            amount=amount
-        )
+    try:
+        # Actually calling the DB function now
+        saved_request = save_request_to_db(new_request)
 
-        try:
-            # Call our separate DB function
-            saved_request = save_request_to_db(new_request)
-            
-            console.print(Panel(
-                f"[bold green]Booking is successful![/bold green]\n"
-                f"Order ID: {saved_request.id}\n"
-                f"Service: {saved_request.service_name}\n"
-                f"Vendor: {saved_request.vendor_name}",
-                style="green"
-            ))
-        except Exception as e:
-            console.print(f"[bold red]Error saving request:[/bold red] {e}")
-    else:
-        console.print("[yellow]Booking cancelled.[/yellow]")
+        console.print(Panel(
+            f"[bold green]Service Request Created Successfully![/bold green]\n"
+            f"Order ID: {saved_request.id}\n"
+            f"Service: {saved_request.service_name}\n"
+            f"Vendor: {saved_request.vendor_name}\n"
+            f"Total: ${saved_request.amount}",
+            style="green"
+        ))
+
+    except Exception as e:
+        # This catches the IntegrityError if IDs collide
+        console.print(f"[bold red]Error saving request:[/bold red] {e}")
 
     questionary.press_any_key_to_continue().ask()
 
-
-def view_order_history_ui(current_user: User):
+def render_history_table(results):
     """
-    Fetches and displays the service history for the logged-in user.
+    Draws the table for User Order History.
+    Used by the pagination engine.
     """
-    console.clear()
-    
-    # 1. Fetch Data
-    with Session(engine) as session:
-        statement = select(ServiceRequest).where(ServiceRequest.customer_id == current_user.id)
-        results = session.exec(statement).all()
-
-    # 2. Handle Empty State
-    if not results:
-        console.print(Panel("No service history found.", style="bold yellow"))
-        questionary.press_any_key_to_continue().ask()
-        return
-
-    # 3. Create Rich Table
-    table = Table(title=f"Order History for {current_user.user_name}", show_lines=True)
-
-    # Define Columns (Symmetric and organized)
+    table = Table(show_lines=True)
     table.add_column("Service ID", justify="center", style="cyan", no_wrap=True)
-    table.add_column("Customer ID", justify="center", style="magenta")
-    table.add_column("User Name", justify="left", style="green")
     table.add_column("Service Type", justify="left", style="bold white")
-    table.add_column("Booking Date", justify="center") # From created_at
-    table.add_column("Scheduled Slot", justify="left") # From date_slot
+    table.add_column("Vendor", justify="left")
+    table.add_column("Booking Date", justify="center")
     table.add_column("Status", justify="center", style="bold yellow")
 
-    # 4. Populate Rows
     for req in results:
-        # Format the date nicely (YYYY-MM-DD)
         booking_date = req.created_at.strftime("%Y-%m-%d") if req.created_at else "N/A"
         
         table.add_row(
             str(req.id),
-            str(current_user.id),
-            current_user.user_name,
             req.service_name,
+            req.vendor_name,
             booking_date,
-            req.date_slot,
             req.status
         )
-
-    # 5. Display
     console.print(table)
-    print("\n") # Add a little breathing room
-    questionary.press_any_key_to_continue().ask()
+
+def view_order_history_ui(current_user: User):
+    """
+    Fetches and displays the service history using the shared Pagination Engine.
+    """
+    with Session(engine) as session:
+        # We define the query, filtering ONLY for this customer
+        statement = select(ServiceRequest).where(ServiceRequest.customer_id == current_user.id)
+        
+        # Hand off control to the utility
+        paginate_results(
+            session=session,
+            statement=statement,
+            render_func=render_history_table,
+            title=f"Order History for {current_user.user_name}"
+        )

@@ -6,6 +6,10 @@ from rich.panel import Panel
 from app.database import engine
 from app.models import User
 
+# --- HARDCODED ADMIN CREDENTIALS ---
+ADMIN_USERNAME = "admin"
+ADMIN_PASSWORD = "admin123"
+
 console = Console()
 
 def validate_email(text):
@@ -99,14 +103,25 @@ def register_user():
         
         questionary.press_any_key_to_continue().ask()
 
-def login_user() -> User | None:
-    """Returns a User object if successful, None otherwise."""
+def login_user() -> User | str | None:
+    """
+    Returns:
+    - User object: If a valid customer logs in.
+    - "ADMIN": If the hardcoded admin logs in.
+    - None: If login fails.
+    """
     console.clear()
     console.print(Panel("Login", style="bold green"))
 
     username = questionary.text("Username:").ask()
     password = questionary.password("Password:").ask()
 
+    # 1. Check for Admin Match FIRST (Bypasses Database)
+    if username == ADMIN_USERNAME and password == ADMIN_PASSWORD:
+        console.print("[bold yellow]Admin Credentials Verified.[/bold yellow]")
+        return "ADMIN"
+
+    # 2. If not Admin, check Database for Customer
     with Session(engine) as session:
         statement = select(User).where(User.user_name == username)
         user = session.exec(statement).first()

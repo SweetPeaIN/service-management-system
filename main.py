@@ -8,6 +8,7 @@ from rich.align import Align
 from app.database import create_db_and_tables
 from app.auth import login_user, register_user
 from app.service_mgr import create_service_request_ui, view_order_history_ui
+from app.admin_mgr import show_admin_dashboard
 
 console = Console()
 
@@ -23,19 +24,11 @@ def main():
         # --- STATE A: User is NOT Logged In ---
         if current_user is None:
             console.clear()
-            # Define the ASCII Art
-            # You can customize this art at: https://patorjk.com/software/taag/
             banner_art = r"""
-                                                                                                                                                               
- ▄▄▄▄▄▄▄                                     ▄▄▄      ▄▄▄                                                             ▄▄▄▄▄▄▄                                  
-█████▀▀▀                   ▀▀                ████▄  ▄████                                                     ██     █████▀▀▀              ██                  
- ▀████▄  ▄█▀█▄ ████▄ ██ ██ ██  ▄████ ▄█▀█▄   ███▀████▀███  ▀▀█▄ ████▄  ▀▀█▄ ▄████ ▄█▀█▄ ███▄███▄ ▄█▀█▄ ████▄ ▀██▀▀    ▀████▄  ██ ██ ▄█▀▀▀ ▀██▀▀ ▄█▀█▄ ███▄███▄ 
-   ▀████ ██▄█▀ ██ ▀▀ ██▄██ ██  ██    ██▄█▀   ███  ▀▀  ███ ▄█▀██ ██ ██ ▄█▀██ ██ ██ ██▄█▀ ██ ██ ██ ██▄█▀ ██ ██  ██        ▀████ ██▄██ ▀███▄  ██   ██▄█▀ ██ ██ ██ 
-███████▀ ▀█▄▄▄ ██     ▀█▀  ██▄ ▀████ ▀█▄▄▄   ███      ███ ▀█▄██ ██ ██ ▀█▄██ ▀████ ▀█▄▄▄ ██ ██ ██ ▀█▄▄▄ ██ ██  ██     ███████▀  ▀██▀ ▄▄▄█▀  ██   ▀█▄▄▄ ██ ██ ██ 
-                                                                               ██                                               ██                             
-                                                                             ▀▀▀                                              ▀▀▀                                               
-
-            """
+========================================
+      SERVICE MANAGEMENT SYSTEM
+========================================
+"""
 
             # We use Align.center to make it look professional on any terminal width
             styled_banner = Align.center(
@@ -60,10 +53,15 @@ def main():
                 console.print("[bold]Goodbye![/bold]")
                 sys.exit()
 
-        # --- STATE B: User IS Logged In (Dashboard) ---
-        else:
+        # --- STATE B: ADMIN MODE (Updated) ---
+        elif current_user == "ADMIN":
+            show_admin_dashboard()
+            current_user = None # reset the user to None (Logout).
+
+        # --- STATE C: Customer Dashboard (Existing Logic) ---
+        elif isinstance(current_user, object): 
+            # We use 'elif' here to be explicit, or just 'else' acts as catch-all for Customers
             console.clear()
-            # Show who is logged in
             console.print(
                 Panel(
                     f"Dashboard\nLogged in as: [bold yellow]{current_user.user_name}[/bold yellow] (ID: {current_user.id})",
@@ -71,7 +69,6 @@ def main():
                 )
             )
 
-            # Dashboard Menu
             choice = questionary.select(
                 "Main Menu:",
                 choices=[
@@ -94,10 +91,8 @@ def main():
                 questionary.press_any_key_to_continue().ask()
 
             else:
-                # Placeholder for features we haven't built yet
-                console.print("[dim]This feature is coming in the next module...[/dim]")
+                console.print("[dim]This feature is coming soon...[/dim]")
                 questionary.press_any_key_to_continue().ask()
-
 
 if __name__ == "__main__":
     main()
