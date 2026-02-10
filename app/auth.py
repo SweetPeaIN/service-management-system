@@ -12,18 +12,6 @@ ADMIN_PASSWORD = "admin123"
 
 console = Console()
 
-def validate_email(text):
-    # Simple regex for basic email format (user@domain.com)
-    pattern = r"^[\w\.-]+@[\w\.-]+\.\w+$"
-    if re.match(pattern, text) and len(text) <= 255:
-        return True
-    return "Please enter a valid email address (max 255 chars)."
-
-def validate_contact(text):
-    if text.isdigit() and len(text) == 10:
-        return True
-    return "Contact Number must be exactly 10 digits."
-
 def register_user():
     console.clear()
     console.print(Panel("Register New Customer", style="bold blue"))
@@ -50,10 +38,10 @@ def register_user():
             validate=validate_email
         ).ask()
 
-        # 3. Password (Max 30 chars)
+        # 3. Password (Complexity Requirements)
         password = questionary.password(
             "Enter Password:",
-            validate=lambda text: True if len(text) > 0 and len(text) <= 30 else "Password must be 1-30 characters."
+            validate=validate_password_complexity
         ).ask()
 
         confirm_password = questionary.password(

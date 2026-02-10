@@ -1,4 +1,6 @@
 import math
+import re
+
 import questionary
 from sqlmodel import Session, select, func
 from rich.console import Console
@@ -6,6 +8,30 @@ from rich.panel import Panel
 
 console = Console()
 PAGE_SIZE = 5
+
+def validate_email(text):
+    # Simple regex for basic email format (user@domain.com)
+    pattern = r"^[\w\.-]+@[\w\.-]+\.\w+$"
+    if re.match(pattern, text) and len(text) <= 255:
+        return True
+    return "Please enter a valid email address (max 255 chars)."
+
+def validate_password_complexity(text):
+    if len(text) < 8 or len(text) > 30:
+        return "Password must be between 8 and 30 characters."
+    if not any(char.isupper() for char in text):
+        return "Password must contain at least one uppercase letter."
+    if not any(char.isdigit() for char in text):
+        return "Password must contain at least one digit."
+    if not re.search(r"[!@#$%^&*(),.?\":{}|<>]", text):
+        return "Password must contain at least one special character."
+    return True
+
+def validate_contact(text):
+    if text.isdigit() and len(text) == 10 and text[0] in "6789":
+        return True
+    return "Contact Number must be exactly 10 digits and starts from 6,7,8,9."
+
 
 def paginate_results(session: Session, statement, render_func, title: str):
     """
@@ -77,3 +103,4 @@ def paginate_results(session: Session, statement, render_func, title: str):
             current_page -= 1
         elif choice == "Back to Menu":
             break
+

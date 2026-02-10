@@ -9,7 +9,7 @@ from sqlmodel import select, Session
 
 from app.database import engine
 from app.models import ServiceRequest, User
-from app.utils import paginate_results
+from app.utils import paginate_results, validate_email, validate_contact, validate_password_complexity
 
 console = Console()
 
@@ -140,25 +140,38 @@ def create_service_request_ui(current_user: User):
 def render_history_table(results):
     """
     Draws the table for User Order History.
-    Used by the pagination engine.
+    Now displays ALL fields from the ServiceRequest table.
     """
     table = Table(show_lines=True)
-    table.add_column("Service ID", justify="center", style="cyan", no_wrap=True)
-    table.add_column("Service Type", justify="left", style="bold white")
+    
+    # 1. Define Columns for ALL Database Fields
+    table.add_column("Order ID", justify="center", style="cyan", no_wrap=True)
+    table.add_column("Cust ID", justify="center", style="dim")
+    table.add_column("Service", justify="left", style="bold white")
     table.add_column("Vendor", justify="left")
-    table.add_column("Booking Date", justify="center")
+    table.add_column("Amount", justify="right", style="green")
     table.add_column("Status", justify="center", style="bold yellow")
+    table.add_column("Scheduled Slot", justify="left", style="blue")
+    table.add_column("Address", justify="left")
+    table.add_column("Created On", justify="center", style="dim")
 
+    # 2. Populate Rows
     for req in results:
-        booking_date = req.created_at.strftime("%Y-%m-%d") if req.created_at else "N/A"
+        # Format the timestamp nicely
+        created_date = req.created_at.strftime("%Y-%m-%d") if req.created_at else "N/A"
         
         table.add_row(
             str(req.id),
+            str(req.customer_id),
             req.service_name,
             req.vendor_name,
-            booking_date,
-            req.status
+            f"${req.amount}",
+            req.status,
+            req.date_slot,
+            req.address,
+            created_date
         )
+    
     console.print(table)
 
 def view_order_history_ui(current_user: User):
@@ -176,3 +189,102 @@ def view_order_history_ui(current_user: User):
             render_func=render_history_table,
             title=f"Order History for {current_user.user_name}"
         )
+
+
+def update_profile_ui(current_user: User):
+    """
+    Allows the user to update their profile details.
+    Shows current values as defaults for easier editing.
+    """
+    while True:
+        console.clear()
+        console.print(Panel(f"Update Profile: {current_user.user_name}", style="bold blue"))
+
+        field_choice = questionary.select(
+            "What would you like to update?",
+            choices=[
+                "Update Email",
+                "Update Contact Number",
+                "Update Address",
+                "Update Password",
+                "Back to Dashboard"
+            ]
+        ).ask()
+
+        if field_choice == "Back to Dashboard":
+            break
+
+        # We open a session ONLY when we are ready to write changes
+        with Session(engine) as session:
+            # 1. Fetch the LIVE record
+            user_in_db = session.get(User, current_user.id)
+            
+            if not user_in_db:
+                console.print("[red]Error: User record not found.[/red]")
+                return
+
+            # 2. Collect & Validate Input (Now with Pre-filled Defaults)
+            if field_choice == "Update Email":
+                # UX: Show current email in prompt AND pre-fill it for editing
+                new_val = questionary.text(
+                    f"Update Email (Current: {user_in_db.email}):",
+                    default=user_in_db.email, 
+                    validate=validate_email
+                ).ask()
+                
+                if new_val:
+                    user_in_db.email = new_val
+                    current_user.email = new_val # Sync local state
+
+            elif field_choice == "Update Contact Number":
+                new_val = questionary.text(
+                    f"Update Contact (Current: {user_in_db.contact_number}):",
+                    default=user_in_db.contact_number,
+                    validate=validate_contact
+                ).ask()
+                
+                if new_val:
+                    user_in_db.contact_number = new_val
+                    current_user.contact_number = new_val
+
+            elif field_choice == "Update Address":
+                new_val = questionary.text(
+                    f"Update Address (Current: {user_in_db.address}):",
+                    default=user_in_db.address,
+                    validate=lambda t: len(t) <= 100
+                ).ask()
+                
+                if new_val:
+                    user_in_db.address = new_val
+                    current_user.address = new_val
+
+            elif field_choice == "Update Password":
+                # Security: Never pre-fill passwords.
+                console.print("[dim]Note: For security, you must enter a completely new password.[/dim]")
+                val1 = questionary.password("Enter New Password:", validate=validate_password_complexity).ask()
+                val2 = questionary.password("Confirm New Password:").ask()
+                
+                if val1 != val2:
+                    console.print("[bold red]Error:[/bold red] Passwords do not match.")
+                    questionary.press_any_key_to_continue().ask()
+                    continue # Skip the save step
+                
+                user_in_db.password = val1
+                current_user.password = val1
+
+            # 3. Commit Changes
+            try:
+                session.add(user_in_db)
+                session.commit()
+                session.refresh(user_in_db)
+                
+                console.print(Panel(
+                    f"[bold green]Success![/bold green] {field_choice} completed.",
+                    style="green"
+                ))
+                questionary.press_any_key_to_continue().ask()
+                
+            except Exception as e:
+                session.rollback()
+                console.print(f"[bold red]Update Failed:[/bold red] {e}")
+                questionary.press_any_key_to_continue().ask()

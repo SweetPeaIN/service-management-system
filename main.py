@@ -7,7 +7,7 @@ from rich.align import Align
 # Import our custom modules from the app package
 from app.database import create_db_and_tables
 from app.auth import login_user, register_user
-from app.service_mgr import create_service_request_ui, view_order_history_ui
+from app.service_mgr import create_service_request_ui, view_order_history_ui, update_profile_ui
 from app.admin_mgr import show_admin_dashboard
 
 console = Console()
@@ -84,6 +84,9 @@ def main():
 
             elif choice == "View Order History":
                 view_order_history_ui(current_user)
+            
+            elif choice == "Update Profile":
+                update_profile_ui(current_user)
 
             elif choice == "Logout":
                 current_user = None

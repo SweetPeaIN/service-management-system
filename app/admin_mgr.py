@@ -56,6 +56,80 @@ def view_all_orders():
             title="All Service Orders (Admin View)"
         )
 
+def change_order_status_ui():
+    """
+    Allows the Admin to update the lifecycle status of a specific Service Request.
+    """
+    console.clear()
+    console.print(Panel("Change Order Status", style="bold blue"))
+
+    # 1. Target Selection
+    order_id_input = questionary.text("Enter Order ID to update:").ask()
+
+    # Basic Validation
+    if not order_id_input.isdigit():
+        console.print("[red]Error: Order ID must be a number.[/red]")
+        questionary.press_any_key_to_continue().ask()
+        return
+
+    order_id = int(order_id_input)
+
+    with Session(engine) as session:
+        # 2. Find Record (Efficient Retrieval)
+        # Explainability: session.get(Model, PK) is the most optimized way to fetch a row.
+        # It skips the overhead of constructing a WHERE clause because it looks directly up the Primary Key index.
+        order = session.get(ServiceRequest, order_id)
+
+        if not order:
+            console.print(Panel(f"[bold red]Error:[/bold red] Order ID {order_id} not found."))
+            questionary.press_any_key_to_continue().ask()
+            return
+
+        # 3. Display Current State (Context is King)
+        console.print(Panel(
+            f"[bold]Service:[/bold] {order.service_name}\n"
+            f"[bold]Vendor:[/bold] {order.vendor_name}\n"
+            f"[bold]Customer ID:[/bold] {order.customer_id}\n"
+            f"[bold]Current Status:[/bold] [yellow]{order.status}[/yellow]",
+            title=f"Order #{order.id} Details",
+            style="cyan"
+        ))
+
+        # 4. Status Submenu
+        new_status = questionary.select(
+            "Select New Status:",
+            choices=[
+                "In Progress",
+                "Completed",
+                "Cancelled",
+                "Back"
+            ]
+        ).ask()
+
+        if new_status == "Back":
+            return
+
+        # 5. Database Update
+        try:
+            # We modify the Python object directly
+            order.status = new_status
+            
+            # session.add tells SQLModel this object is 'dirty' and needs saving
+            session.add(order)
+            session.commit()
+            session.refresh(order)
+
+            console.print(Panel(
+                f"[bold green]Success:[/bold green] Order #{order.id} status updated to '{order.status}'.",
+                style="green"
+            ))
+
+        except Exception as e:
+            session.rollback()
+            console.print(f"[bold red]Database Error:[/bold red] {e}")
+    
+    questionary.press_any_key_to_continue().ask()
+
 def display_users(results: list[User]):
     """
     Helper function to render a list of Users in a Rich Table.
@@ -237,18 +311,19 @@ def show_admin_dashboard():
     while True:
         console.clear()
         
-        # Visual Distinction: Red Style for Admin
+        # Visual Distinction: Purple Style for Admin
         console.print(Panel(
-            "[bold red]ADMIN DASHBOARD[/bold red]\n"
-            "Manage Users, Orders, and System Settings", 
-            style="bold red",
-            subtitle="Access Level: Superuser"
+            "[bold magenta]ADMIN DASHBOARD[/bold magenta]\n"
+            "Manage Users, Orders, and System Settings",
+            style="magenta",
+            subtitle="[dim]Access Level: Superuser[/dim]"
         ))
 
         choice = questionary.select(
             "Admin Menu:",
             choices=[
                 "View All Orders",
+                "Change Order Status",
                 "Search a User",
                 "Remove User",
                 "Logout"
@@ -258,6 +333,9 @@ def show_admin_dashboard():
         # --- NAVIGATION LOGIC ---
         if choice == "View All Orders":
             view_all_orders()
+
+        elif choice == "Change Order Status":
+            change_order_status_ui()
 
         elif choice == "Search a User":
             search_user_ui()
