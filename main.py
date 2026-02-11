@@ -9,6 +9,9 @@ from app.database import create_db_and_tables
 from app.auth import login_user, register_user
 from app.service_mgr import create_service_request_ui, view_order_history_ui, update_profile_ui
 from app.admin_mgr import show_admin_dashboard
+from app.utils import validate_email, validate_contact, validate_password_complexity
+
+
 
 console = Console()
 

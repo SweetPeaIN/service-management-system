@@ -5,6 +5,7 @@ from rich.console import Console
 from rich.panel import Panel
 from app.database import engine
 from app.models import User
+from app.utils import validate_email, validate_contact, validate_password_complexity
 
 # --- HARDCODED ADMIN CREDENTIALS ---
 ADMIN_USERNAME = "admin"
