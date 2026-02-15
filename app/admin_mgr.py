@@ -202,8 +202,7 @@ def search_user_ui():
 
         # We build the query based on the selection
         if search_by == "User ID":
-            # Exact match for ID (Integer)
-            # We must convert input to int, handling errors if user types text
+            # Integer search remains exact
             if not search_term.isdigit():
                 console.print("[red]Error: User ID must be a number.[/red]")
                 questionary.press_any_key_to_continue().ask()
@@ -211,16 +210,19 @@ def search_user_ui():
             statement = statement.where(User.id == int(search_term))
 
         elif search_by == "Username":
-            # Partial match (Case insensitive usually preferred, but SQLite is tricky with case)
-            # col(User.user_name).contains(x) translates to SQL: user_name LIKE '%x%'
-            statement = statement.where(col(User.user_name).contains(search_term))
+            # CASE SENSITIVE SEARCH (GLOB)
+            # GLOB uses '*' as a wildcard instead of '%'.
+            # "David" will match "David", "Davids", but NOT "david".
+            statement = statement.where(col(User.user_name).op("GLOB")(f"*{search_term}*"))
 
         elif search_by == "Email":
-            statement = statement.where(col(User.email).contains(search_term))
+            # CASE SENSITIVE SEARCH (GLOB)
+            statement = statement.where(col(User.email).op("GLOB")(f"*{search_term}*"))
 
         elif search_by == "Contact Number":
-            statement = statement.where(col(User.contact_number).contains(search_term))
-
+            # CASE SENSITIVE SEARCH (GLOB)
+            statement = statement.where(col(User.contact_number).op("GLOB")(f"*{search_term}*"))
+            
         # Execute
         results = session.exec(statement).all()
 
