@@ -85,6 +85,17 @@ def change_order_status_ui():
             questionary.press_any_key_to_continue().ask()
             return
 
+        # ... (after order retrieval and existence check) ...
+        if order.status == "Completed":
+            console.print(Panel(
+                "[bold red]Action Denied:[/bold red] This order is already 'Completed' and cannot be modified.",
+                title="Locked Record",
+                style="red"
+            ))
+            questionary.press_any_key_to_continue().ask()
+            return
+
+
         # 3. Display Current State (Context is King)
         console.print(Panel(
             f"[bold]Service:[/bold] {order.service_name}\n"

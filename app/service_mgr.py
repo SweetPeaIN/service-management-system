@@ -1,15 +1,17 @@
 import questionary
 import re
+from datetime import datetime, timedelta
+
 from rich.console import Console
 from rich.panel import Panel
 from rich.table import Table
-from datetime import datetime, timedelta
 
 from sqlmodel import select, Session
 
 from app.database import engine
 from app.models import ServiceRequest, User
 from app.utils import paginate_results, validate_email, validate_contact, validate_password_complexity
+from app.profile_ui import render_profile_dashboard
 
 console = Console()
 
@@ -194,12 +196,14 @@ def view_order_history_ui(current_user: User):
 def update_profile_ui(current_user: User):
     """
     Allows the user to update their profile details.
-    Shows current values as defaults for easier editing.
+    Delegates visual rendering to app.profile_ui.
     """
     while True:
-        console.clear()
-        console.print(Panel(f"Update Profile: {current_user.user_name}", style="bold blue"))
+        # 1. RENDER THE UI (Visual Separation)
+        # This function handles the clear screen, random themes, and avatar drawing.
+        render_profile_dashboard(current_user)
 
+        # 2. MENU LOGIC
         field_choice = questionary.select(
             "What would you like to update?",
             choices=[
@@ -214,18 +218,18 @@ def update_profile_ui(current_user: User):
         if field_choice == "Back to Dashboard":
             break
 
-        # We open a session ONLY when we are ready to write changes
+        # 3. DATABASE LOGIC (Transactional)
         with Session(engine) as session:
-            # 1. Fetch the LIVE record
+            # Fetch fresh user record
             user_in_db = session.get(User, current_user.id)
             
             if not user_in_db:
                 console.print("[red]Error: User record not found.[/red]")
                 return
 
-            # 2. Collect & Validate Input (Now with Pre-filled Defaults)
+            # --- INPUT & UPDATE HANDLERS ---
+            
             if field_choice == "Update Email":
-                # UX: Show current email in prompt AND pre-fill it for editing
                 new_val = questionary.text(
                     f"Update Email (Current: {user_in_db.email}):",
                     default=user_in_db.email, 
@@ -234,7 +238,7 @@ def update_profile_ui(current_user: User):
                 
                 if new_val:
                     user_in_db.email = new_val
-                    current_user.email = new_val # Sync local state
+                    current_user.email = new_val 
 
             elif field_choice == "Update Contact Number":
                 new_val = questionary.text(
@@ -259,7 +263,6 @@ def update_profile_ui(current_user: User):
                     current_user.address = new_val
 
             elif field_choice == "Update Password":
-                # Security: Never pre-fill passwords.
                 console.print("[dim]Note: For security, you must enter a completely new password.[/dim]")
                 val1 = questionary.password("Enter New Password:", validate=validate_password_complexity).ask()
                 val2 = questionary.password("Confirm New Password:").ask()
@@ -267,22 +270,22 @@ def update_profile_ui(current_user: User):
                 if val1 != val2:
                     console.print("[bold red]Error:[/bold red] Passwords do not match.")
                     questionary.press_any_key_to_continue().ask()
-                    continue # Skip the save step
+                    continue 
                 
                 user_in_db.password = val1
                 current_user.password = val1
 
-            # 3. Commit Changes
+            # 4. COMMIT
             try:
                 session.add(user_in_db)
                 session.commit()
                 session.refresh(user_in_db)
                 
-                console.print(Panel(
-                    f"[bold green]Success![/bold green] {field_choice} completed.",
-                    style="green"
-                ))
-                questionary.press_any_key_to_continue().ask()
+                # We don't need a huge success panel here because the loop restarts
+                # and the new data appears instantly on the "Identity Card".
+                # A subtle confirmation is enough.
+                # console.print(f"[green]>> Success! {field_choice} completed.[/green]")
+                # questionary.press_any_key_to_continue().ask()
                 
             except Exception as e:
                 session.rollback()
