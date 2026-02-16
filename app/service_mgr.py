@@ -1,10 +1,12 @@
 import questionary
+from questionary import Choice
 import re
 from datetime import datetime, timedelta
 
 from rich.console import Console
 from rich.panel import Panel
 from rich.table import Table
+from rich import box
 
 from sqlmodel import select, Session
 
@@ -15,12 +17,30 @@ from app.profile_ui import render_profile_dashboard
 
 console = Console()
 
-# Pricing Configuration
-VENDOR_PRICING = {
-    "Vendor A": 100,
-    "Vendor B": 150,
-    "Vendor C": 200
-}
+# Vendor Data dict rich dataset
+VENDOR_DATA = [
+    {
+        "name": "Vendor A", 
+        "price": 100, 
+        "rating": 4.2, 
+        "experience": "3 Yrs - Generalist",
+        "badge": "Reliable"
+    },
+    {
+        "name": "Vendor B", 
+        "price": 150, 
+        "rating": 4.6, 
+        "experience": "8 Yrs - Specialist",
+        "badge": "Top Rated"
+    },
+    {
+        "name": "Vendor C", 
+        "price": 200, 
+        "rating": 4.9, 
+        "experience": "15 Yrs - Expert",
+        "badge": "Premium"
+    }
+]
 
 # --- VALIDATION FUNCTIONS ---
 def validate_date_input(date_text: str):
@@ -54,6 +74,41 @@ def save_request_to_db(request_data: ServiceRequest):
         session.commit()
         session.refresh(request_data) 
         return request_data
+
+# --- HELPER UI FUNCTIONS ---
+def display_vendor_options():
+    """
+    Renders a comparison table of available vendors.
+    """
+    table = Table(
+        title="Available Service Partners",
+        box=box.ROUNDED,
+        header_style="bold cyan",
+        expand=True
+    )
+
+    # Define Columns
+    table.add_column("Vendor Name", style="bold white")
+    table.add_column("Price", justify="right", style="green")
+    table.add_column("Rating", justify="center", style="yellow")
+    table.add_column("Experience & Expertise", style="dim")
+
+    for v in VENDOR_DATA:
+        # Convert numeric rating to stars
+        # Example: 4.5 -> ⭐⭐⭐⭐½ (Simplified to stars for terminal compatibility)
+        stars = "⭐" * int(v['rating'])
+        if v['rating'] % 1 >= 0.5:
+            stars += "½"
+        
+        table.add_row(
+            v['name'],
+            f"${v['price']}",
+            f"{v['rating']} {stars}",
+            v['experience']
+        )
+    
+    console.print(table)
+    console.print("\n") # Spacing
 
 # --- UI FUNCTIONS ---
 def create_service_request_ui(current_user: User):
@@ -95,33 +150,45 @@ def create_service_request_ui(current_user: User):
     ).ask()
     if not address: return
 
-    # 5. Vendor
-    vendor_choice = questionary.select(
-        "Select a Vendor:",
-        choices=[
-            f"Vendor A (${VENDOR_PRICING['Vendor A']})",
-            f"Vendor B (${VENDOR_PRICING['Vendor B']})",
-            f"Vendor C (${VENDOR_PRICING['Vendor C']})"
-        ]
+    # 5. Vendor Selection (ENHANCED)
+    console.clear() # Clear screen to focus on the comparison
+    console.print(Panel(f"Step 5: Select Vendor for [bold]{service_type}[/bold]", style="cyan"))
+    
+    # A. Show the Comparison Table
+    display_vendor_options()
+
+    # B. Build the 'Rich' Choices
+    # We use questionary.Choice to display a string but return the Dictionary object
+    vendor_choices = []
+    for v in VENDOR_DATA:
+        vendor_choices.append(
+            Choice(
+                title=f"{v['name']} -- ${v['price']} ({v['experience']})",
+                value=v # <--- CRITICAL: Passing the whole dict as the value
+            )
+        )
+    
+    # C. Capture the Object
+    selected_vendor = questionary.select(
+        "Choose your service partner:",
+        choices=vendor_choices
     ).ask()
-    if not vendor_choice: return
 
-    vendor_name = vendor_choice.split(" ($")[0]
-    amount = VENDOR_PRICING[vendor_name]
+    if not selected_vendor: return
 
-    # 6. Save Logic (The Fix)
+    # 6. Save Logic
+    # Now we access data directly from the selected object
     new_request = ServiceRequest(
         customer_id=current_user.id,
         service_name=service_type,
         date_slot=date_slot_combined,
         address=address,
-        vendor_name=vendor_name,
-        amount=amount,
+        vendor_name=selected_vendor['name'], # Direct Access
+        amount=selected_vendor['price'],     # Direct Access
         status="Pending"
     )
 
     try:
-        # Actually calling the DB function now
         saved_request = save_request_to_db(new_request)
 
         console.print(Panel(
@@ -134,7 +201,6 @@ def create_service_request_ui(current_user: User):
         ))
 
     except Exception as e:
-        # This catches the IntegrityError if IDs collide
         console.print(f"[bold red]Error saving request:[/bold red] {e}")
 
     questionary.press_any_key_to_continue().ask()

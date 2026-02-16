@@ -11,7 +11,7 @@ PAGE_SIZE = 5
 
 def validate_email(text):
     # Simple regex for basic email format (user@domain.com)
-    pattern = r"^[\w\.-]+@[\w\.-]+\.\w+$"
+    pattern = r"^(?!\.)(?!.*\.\.)([A-Za-z0-9._%+-]{1,64})@([A-Za-z0-9-]+\.)+[A-Za-z]{2,}$"
     if re.match(pattern, text) and len(text) <= 255:
         return True
     return "Please enter a valid email address (max 255 chars)."
