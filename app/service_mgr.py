@@ -20,23 +20,23 @@ console = Console()
 # Vendor Data dict rich dataset
 VENDOR_DATA = [
     {
-        "name": "Vendor A", 
-        "price": 100, 
-        "rating": 4.2, 
+        "name": "Vendor A",
+        "price": 100,
+        "rating": 4.2,
         "experience": "3 Yrs - Generalist",
         "badge": "Reliable"
     },
     {
-        "name": "Vendor B", 
-        "price": 150, 
-        "rating": 4.6, 
+        "name": "Vendor B",
+        "price": 150,
+        "rating": 4.6,
         "experience": "8 Yrs - Specialist",
         "badge": "Top Rated"
     },
     {
-        "name": "Vendor C", 
-        "price": 200, 
-        "rating": 4.9, 
+        "name": "Vendor C",
+        "price": 200,
+        "rating": 4.9,
         "experience": "15 Yrs - Expert",
         "badge": "Premium"
     }
@@ -72,7 +72,7 @@ def save_request_to_db(request_data: ServiceRequest):
     with Session(engine) as session:
         session.add(request_data)
         session.commit()
-        session.refresh(request_data) 
+        session.refresh(request_data)
         return request_data
 
 # --- HELPER UI FUNCTIONS ---
@@ -99,14 +99,14 @@ def display_vendor_options():
         stars = "⭐" * int(v['rating'])
         if v['rating'] % 1 >= 0.5:
             stars += "½"
-        
+
         table.add_row(
             v['name'],
             f"${v['price']}",
             f"{v['rating']} {stars}",
             v['experience']
         )
-    
+
     console.print(table)
     console.print("\n") # Spacing
 
@@ -153,7 +153,7 @@ def create_service_request_ui(current_user: User):
     # 5. Vendor Selection (ENHANCED)
     console.clear() # Clear screen to focus on the comparison
     console.print(Panel(f"Step 5: Select Vendor for [bold]{service_type}[/bold]", style="cyan"))
-    
+
     # A. Show the Comparison Table
     display_vendor_options()
 
@@ -167,14 +167,18 @@ def create_service_request_ui(current_user: User):
                 value=v # <--- CRITICAL: Passing the whole dict as the value
             )
         )
-    
+    vendor_choices.append("Cancel Request")
+
     # C. Capture the Object
     selected_vendor = questionary.select(
         "Choose your service partner:",
         choices=vendor_choices
     ).ask()
 
-    if not selected_vendor: return
+    if selected_vendor == "Cancel Request" or selected_vendor is None:
+        console.print("[yellow] Request creation cancelled.[/yellow]")
+        questionary.press_any_key_to_continue().ask()
+        return
 
     # 6. Save Logic
     # Now we access data directly from the selected object
@@ -211,7 +215,7 @@ def render_history_table(results):
     Now displays ALL fields from the ServiceRequest table.
     """
     table = Table(show_lines=True)
-    
+
     # 1. Define Columns for ALL Database Fields
     table.add_column("Order ID", justify="center", style="cyan", no_wrap=True)
     table.add_column("Cust ID", justify="center", style="dim")
@@ -227,7 +231,7 @@ def render_history_table(results):
     for req in results:
         # Format the timestamp nicely
         created_date = req.created_at.strftime("%Y-%m-%d") if req.created_at else "N/A"
-        
+
         table.add_row(
             str(req.id),
             str(req.customer_id),
@@ -239,7 +243,7 @@ def render_history_table(results):
             req.address,
             created_date
         )
-    
+
     console.print(table)
 
 def view_order_history_ui(current_user: User):
@@ -249,7 +253,7 @@ def view_order_history_ui(current_user: User):
     with Session(engine) as session:
         # We define the query, filtering ONLY for this customer
         statement = select(ServiceRequest).where(ServiceRequest.customer_id == current_user.id)
-        
+
         # Hand off control to the utility
         paginate_results(
             session=session,
@@ -281,30 +285,32 @@ def update_profile_ui(current_user: User):
             ]
         ).ask()
 
-        if field_choice == "Back to Dashboard":
+        if field_choice == "Back to Dashboard" or field_choice == None:
             break
 
         # 3. DATABASE LOGIC (Transactional)
         with Session(engine) as session:
             # Fetch fresh user record
             user_in_db = session.get(User, current_user.id)
-            
+
             if not user_in_db:
                 console.print("[red]Error: User record not found.[/red]")
                 return
 
             # --- INPUT & UPDATE HANDLERS ---
-            
+
             if field_choice == "Update Email":
                 new_val = questionary.text(
                     f"Update Email (Current: {user_in_db.email}):",
-                    default=user_in_db.email, 
+                    default=user_in_db.email,
                     validate=validate_email
                 ).ask()
-                
+
                 if new_val:
                     user_in_db.email = new_val
-                    current_user.email = new_val 
+                    current_user.email = new_val
+
+                elif new_val is None: return
 
             elif field_choice == "Update Contact Number":
                 new_val = questionary.text(
@@ -312,10 +318,12 @@ def update_profile_ui(current_user: User):
                     default=user_in_db.contact_number,
                     validate=validate_contact
                 ).ask()
-                
+
                 if new_val:
                     user_in_db.contact_number = new_val
                     current_user.contact_number = new_val
+
+                elif new_val is None: return
 
             elif field_choice == "Update Address":
                 new_val = questionary.text(
@@ -323,21 +331,26 @@ def update_profile_ui(current_user: User):
                     default=user_in_db.address,
                     validate=lambda t: len(t) <= 100
                 ).ask()
-                
+
                 if new_val:
                     user_in_db.address = new_val
                     current_user.address = new_val
 
+                elif new_val is None: return
+
             elif field_choice == "Update Password":
-                console.print("[dim]Note: For security, you must enter a completely new password.[/dim]")
+                console.print("[dim]Enter a new password.[/dim]")
                 val1 = questionary.password("Enter New Password:", validate=validate_password_complexity).ask()
+                if not val1: return
+
                 val2 = questionary.password("Confirm New Password:").ask()
-                
+                if not val2: return
+
                 if val1 != val2:
                     console.print("[bold red]Error:[/bold red] Passwords do not match.")
                     questionary.press_any_key_to_continue().ask()
-                    continue 
-                
+                    continue
+
                 user_in_db.password = val1
                 current_user.password = val1
 
@@ -346,13 +359,13 @@ def update_profile_ui(current_user: User):
                 session.add(user_in_db)
                 session.commit()
                 session.refresh(user_in_db)
-                
+
                 # We don't need a huge success panel here because the loop restarts
                 # and the new data appears instantly on the "Identity Card".
                 # A subtle confirmation is enough.
                 # console.print(f"[green]>> Success! {field_choice} completed.[/green]")
                 # questionary.press_any_key_to_continue().ask()
-                
+
             except Exception as e:
                 session.rollback()
                 console.print(f"[bold red]Update Failed:[/bold red] {e}")

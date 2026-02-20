@@ -16,7 +16,7 @@ console = Console()
 # 1. The Renderer (Pure UI Logic)
 def render_orders_table(results):
     table = Table(show_lines=True)
-    
+
     table.add_column("Order ID", justify="center", style="cyan", no_wrap=True)
     table.add_column("Cust ID", justify="center", style="magenta")
     table.add_column("Service", justify="left", style="bold white")
@@ -48,7 +48,7 @@ def view_all_orders():
     with Session(engine) as session:
         # We just define the query. The engine handles the fetching loop.
         statement = select(ServiceRequest)
-        
+
         paginate_results(
             session=session,
             statement=statement,
@@ -65,6 +65,7 @@ def change_order_status_ui():
 
     # 1. Target Selection
     order_id_input = questionary.text("Enter Order ID to update:").ask()
+    if order_id_input is None: return
 
     # Basic Validation
     if not order_id_input.isdigit():
@@ -117,14 +118,14 @@ def change_order_status_ui():
             ]
         ).ask()
 
-        if new_status == "Back":
+        if new_status == "Back" or new_status is None:
             return
 
         # 5. Database Update
         try:
             # We modify the Python object directly
             order.status = new_status
-            
+
             # session.add tells SQLModel this object is 'dirty' and needs saving
             session.add(order)
             session.commit()
@@ -138,7 +139,7 @@ def change_order_status_ui():
         except Exception as e:
             session.rollback()
             console.print(f"[bold red]Database Error:[/bold red] {e}")
-    
+
     questionary.press_any_key_to_continue().ask()
 
 def display_users(results: list[User]):
@@ -151,7 +152,7 @@ def display_users(results: list[User]):
         return
 
     table = Table(title=f"Search Results ({len(results)} found)", show_lines=True)
-    
+
     # Define Columns
     table.add_column("ID", justify="center", style="cyan", no_wrap=True)
     table.add_column("Username", style="magenta")
@@ -189,7 +190,7 @@ def search_user_ui():
         ]
     ).ask()
 
-    if search_by == "Back to Dashboard":
+    if search_by == "Back to Dashboard" or search_by is None:
         return
 
     # 2. Get Input
@@ -222,18 +223,15 @@ def search_user_ui():
         elif search_by == "Contact Number":
             # CASE SENSITIVE SEARCH (GLOB)
             statement = statement.where(col(User.contact_number).op("GLOB")(f"*{search_term}*"))
-            
+
         # Execute
         results = session.exec(statement).all()
 
         # 4. Display
         display_users(results)
-    
+
     questionary.press_any_key_to_continue().ask()
 
-from sqlmodel import select, delete, Session
-from sqlalchemy.exc import IntegrityError
-# ... (Keep existing imports)
 
 def remove_user_ui():
     """
@@ -245,19 +243,20 @@ def remove_user_ui():
 
     # 1. Identify Target
     target_id_input = questionary.text("Enter User ID to remove:").ask()
-    
+    if target_id_input is None: return
+
     # Basic Validation
     if not target_id_input.isdigit():
         console.print("[red]Error: User ID must be a number.[/red]")
         questionary.press_any_key_to_continue().ask()
         return
-    
+
     target_id = int(target_id_input)
 
     with Session(engine) as session:
         # 2. Safety Check: Does User Exist?
         user_to_delete = session.get(User, target_id)
-        
+
         if not user_to_delete:
             console.print(Panel(f"[bold red]Error:[/bold red] User ID {target_id} not found."))
             questionary.press_any_key_to_continue().ask()
@@ -323,7 +322,7 @@ def show_admin_dashboard():
     """
     while True:
         console.clear()
-        
+
         # Visual Distinction: Purple Style for Admin
         console.print(Panel(
             "[bold magenta]ADMIN DASHBOARD[/bold magenta]\n"
@@ -356,7 +355,7 @@ def show_admin_dashboard():
         elif choice == "Remove User":
             remove_user_ui()
 
-        elif choice == "Logout":
+        elif choice == "Logout" or choice is None:
             # Breaking this loop returns control to main.py
             console.print("[yellow]Logging out...[/yellow]")
             break

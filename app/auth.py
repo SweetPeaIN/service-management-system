@@ -22,7 +22,7 @@ def register_user():
         "Enter User Name:",
         validate=lambda text: True if len(text) > 0 and len(text) <= 50 else "Username must be 1-50 characters."
     ).ask()
-    
+
     if not username: return  # Handle cancellation
 
     with Session(engine) as session:
@@ -38,32 +38,34 @@ def register_user():
             "Enter Email:",
             validate=validate_email
         ).ask()
+        if email is None: return
 
         # 3. Password (Complexity Requirements)
         password = questionary.password(
             "Enter Password:",
             validate=validate_password_complexity
         ).ask()
+        if password is None: return
 
         confirm_password = questionary.password(
             "Confirm Password:",
             validate=lambda text: True if text == password else "Passwords do not match!"
         ).ask()
-        
-        # Handle case where user might cancel (Ctrl+C)
         if confirm_password is None: return
-        
+
         # 4. Address (Max 100 chars)
         address = questionary.text(
             "Enter Address (Street, City):",
             validate=lambda text: True if len(text) <= 100 else "Address is too long (max 100 chars)."
         ).ask()
+        if address is None: return
 
         # 5. Contact Number (Exactly 10 digits)
         contact = questionary.text(
             "Enter Contact Number:",
             validate=validate_contact
         ).ask()
+        if contact is None: return
 
         # Create User Object (ID generated automatically in models.py)
         new_user = User(
@@ -78,7 +80,7 @@ def register_user():
             session.add(new_user)
             session.commit()
             session.refresh(new_user)
-            
+
             # Success Message
             console.print(Panel(
                 f"[bold green]Customer Registration is successful[/bold green]\n"
@@ -86,10 +88,10 @@ def register_user():
                 f"Name: {new_user.user_name}",
                 style="bold green"
             ))
-            
+
         except Exception as e:
             console.print(f"[bold red]Database Error:[/bold red] {e}")
-        
+
         questionary.press_any_key_to_continue().ask()
 
 def login_user() -> User | str | None:
@@ -103,7 +105,10 @@ def login_user() -> User | str | None:
     console.print(Panel("Login", style="bold green"))
 
     username = questionary.text("Username:").ask()
+    if username is None: return None
+
     password = questionary.password("Password:").ask()
+    if password is None: return None
 
     # 1. Check for Admin Match FIRST (Bypasses Database)
     if username == ADMIN_USERNAME and password == ADMIN_PASSWORD:

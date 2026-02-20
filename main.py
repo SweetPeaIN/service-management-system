@@ -37,7 +37,7 @@ def main():
             styled_banner = Align.center(
             Panel(banner_art, style="bold cyan", border_style="blue", padding=(1, 2))
             )
-    
+
             console.print(styled_banner)
             console.print("\n") # Add some breathing room
             choice = questionary.select(
@@ -52,7 +52,7 @@ def main():
             elif choice == "Register New Customer":
                 register_user()
 
-            elif choice == "Exit":
+            elif choice == "Exit" or choice is None:
                 console.print("[bold]Goodbye![/bold]")
                 sys.exit()
 
@@ -62,7 +62,7 @@ def main():
             current_user = None # reset the user to None (Logout).
 
         # --- STATE C: Customer Dashboard (Existing Logic) ---
-        elif isinstance(current_user, object): 
+        elif isinstance(current_user, object):
             # We use 'elif' here to be explicit, or just 'else' acts as catch-all for Customers
             console.clear()
             console.print(
@@ -87,11 +87,11 @@ def main():
 
             elif choice == "View Order History":
                 view_order_history_ui(current_user)
-            
+
             elif choice == "Update Profile":
                 update_profile_ui(current_user)
 
-            elif choice == "Logout":
+            elif choice == "Logout" or choice == None:
                 current_user = None
                 console.print("[yellow]Logged out successfully.[/yellow]")
                 questionary.press_any_key_to_continue().ask()
